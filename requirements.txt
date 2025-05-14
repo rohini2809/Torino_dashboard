@@ -1,0 +1,10 @@
+streamlit
+pandas
+geopandas
+rasterio
+matplotlib
+seaborn
+folium
+Pillow
+rasterstats
+streamlit-folium
