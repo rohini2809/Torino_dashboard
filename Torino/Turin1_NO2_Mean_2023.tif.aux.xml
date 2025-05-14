@@ -1,0 +1,12 @@
+<PAMDataset>
+  <PAMRasterBand band="1">
+    <Description>tropospheric_NO2_column_number_density</Description>
+    <Metadata>
+      <MDI key="STATISTICS_MINIMUM">3.8801519535131e-05</MDI>
+      <MDI key="STATISTICS_MAXIMUM">0.0001090735621828</MDI>
+      <MDI key="STATISTICS_MEAN">6.5129119119439e-05</MDI>
+      <MDI key="STATISTICS_STDDEV">1.3549420229069e-05</MDI>
+      <MDI key="STATISTICS_VALID_PERCENT">78.1</MDI>
+    </Metadata>
+  </PAMRasterBand>
+</PAMDataset>

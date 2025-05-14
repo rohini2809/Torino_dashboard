@@ -1,0 +1,12 @@
+<PAMDataset>
+  <PAMRasterBand band="1">
+    <Description>tropospheric_HCHO_column_number_density</Description>
+    <Metadata>
+      <MDI key="STATISTICS_MINIMUM">6.3903718304509e-05</MDI>
+      <MDI key="STATISTICS_MAXIMUM">0.00013817124811798</MDI>
+      <MDI key="STATISTICS_MEAN">0.00010855554875022</MDI>
+      <MDI key="STATISTICS_STDDEV">1.0981742269343e-05</MDI>
+      <MDI key="STATISTICS_VALID_PERCENT">78.1</MDI>
+    </Metadata>
+  </PAMRasterBand>
+</PAMDataset>

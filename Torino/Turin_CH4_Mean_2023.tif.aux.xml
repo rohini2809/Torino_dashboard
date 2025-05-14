@@ -1,0 +1,12 @@
+<PAMDataset>
+  <PAMRasterBand band="1">
+    <Description>CH4_column_volume_mixing_ratio_dry_air</Description>
+    <Metadata>
+      <MDI key="STATISTICS_MINIMUM">1872.513481426</MDI>
+      <MDI key="STATISTICS_MAXIMUM">1930.090485874</MDI>
+      <MDI key="STATISTICS_MEAN">1901.0466289001</MDI>
+      <MDI key="STATISTICS_STDDEV">6.9905911912759</MDI>
+      <MDI key="STATISTICS_VALID_PERCENT">72.46</MDI>
+    </Metadata>
+  </PAMRasterBand>
+</PAMDataset>
