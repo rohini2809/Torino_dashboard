@@ -1,3 +1,5 @@
+
+# Streamlit + SDG11 Dashboard: Final Version (with Real Municipality Column)
 import streamlit as st
 import geopandas as gpd
 import folium
@@ -26,7 +28,7 @@ Scroll or click a section to navigate.
 
 st.sidebar.title("📌 Navigation")
 scroll_target = st.sidebar.radio("Jump to Section:", [
-    "🗼️ Interactive Map", "📊 Data Exploration", "📈 Trends Over Time", "🏩 Urban SDG 11 Insights", "📃 Socio-Economic Analysis"])
+    "🗺️ Interactive Map", "📊 Data Exploration", "📈 Trends Over Time", "🏙️ Urban SDG 11 Insights", "📃 Socio-Economic Analysis"])
 
 # ── File mappings ────────────────────────────────────────────────────────────
 DATA_DIR = "Torino"
@@ -60,11 +62,8 @@ with rasterio.open(tif_path) as src:
     regions_stats = gpd.GeoDataFrame.from_features(stats)
     regions_stats.set_crs(epsg=4326, inplace=True)
 
-# ── CSV path for Streamlit Cloud ───────────────────────────────────────────
-DATA_PATH = ""
-
 # ── Map Section ──────────────────────────────────────────────────────────────
-if scroll_target == "🗼️ Interactive Map":
+if scroll_target == "🗺️ Interactive Map":
     center = regions.geometry.centroid.iloc[0].coords[0][::-1]
     m = folium.Map(location=center, zoom_start=11, tiles="CartoDB positron")
 
@@ -99,17 +98,17 @@ if scroll_target == "🗼️ Interactive Map":
     ).add_to(m)
 
     folium.LayerControl().add_to(m)
-    st.markdown("### 🗼️ Interactive Map")
+    st.markdown("### 🗺️ Interactive Map")
     st_folium(m, width=1200, height=600)
-    st.markdown("**🗱️ Darker colors indicate higher risk zones. Prioritize these areas for urban planning actions.**")
+    st.markdown("**🟥 Darker colors indicate higher risk zones. Prioritize these areas for urban planning actions.**")
 
 # ── Socio-Economic Analysis ─────────────────────────────────────────────────────
 if scroll_target == "📃 Socio-Economic Analysis":
     st.markdown("## 📃 Socio-Economic Analysis")
     try:
-        veh_mob = pd.read_csv(os.path.join(DATA_PATH, "torino_vehicle_mobility.csv"))
-        socio = pd.read_csv(os.path.join(DATA_PATH, "torino_socio_econ_factors.csv"))
-        pop = pd.read_csv(os.path.join(DATA_PATH, "Resident population.csv"))
+        veh_mob = pd.read_csv("torino_vehicle_mobility.csv")
+        socio = pd.read_csv("torino_socio_econ_factors.csv")
+        pop = pd.read_csv("Resident population.csv")
 
         veh_mob["municipality"] = veh_mob["municipality"].str.lower().str.strip()
         socio["municipality"] = socio["municipality"].str.lower().str.strip()
