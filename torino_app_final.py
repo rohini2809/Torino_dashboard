@@ -10,33 +10,40 @@ from folium.raster_layers import ImageOverlay
 from folium import Choropleth
 from PIL import Image
 import os
-import tempfile
+import io
 import seaborn as sns
 from rasterstats import zonal_stats
+import tempfile
 import pandas as pd
 
-# ── Page setup ─────────────────────────────────────
+# ── Page setup ─────────────────────────────────────────────────────────────
 st.set_page_config(layout="wide")
 st.title("🌍 Air Pollution in Turin - SDG 11 Dashboard")
 st.markdown("""
-This dashboard explores satellite-based pollution data for **Turin, Italy** in support of **SDG 11: Sustainable Cities and Communities**.
+This dashboard explores satellite-based pollution data for **Turin, Italy** in support of **SDG 11: Sustainable Cities and Communities**. 
+Scroll or click a section to navigate.
 """)
 
-# ── File mappings ───────────────────────────────────
+st.sidebar.title("📌 Navigation")
+scroll_target = st.sidebar.radio("Jump to Section:", [
+    "🗼️ Interactive Map", "📊 Data Exploration", "📈 Trends Over Time", "🏩 Urban SDG 11 Insights", "📃 Socio-Economic Analysis"])
+
+# ── File mappings ────────────────────────────────────────────────────────────
 DATA_DIR = "Torino"
 GEOJSON = "torino_only.geojson"
+
 FILE_MAP = {
     "NO2": "no2_turin_clipped.tif",
     "SO2": "so2_turin_clipped.tif",
     "CH4": "ch4_turin_clipped.tif",
     "O3":  "o3_turin_clipped.tif",
-    "HCHO": "hcho_turin_clipped.tif"
+    "HCHO":"hcho_turin_clipped.tif"
 }
 
 pollutant = st.sidebar.selectbox("Select pollutant:", list(FILE_MAP.keys()))
 tif_path = os.path.join(DATA_DIR, FILE_MAP[pollutant])
 
-# ── Load GeoJSON and raster ────────────────────────
+# ── Load boundary GeoJSON and raster ─────────────────────────────────────────
 regions = gpd.read_file(GEOJSON)
 if regions.crs is None:
     regions.set_crs(epsg=4326, inplace=True)
@@ -55,15 +62,8 @@ with rasterio.open(tif_path) as src:
 
 center = regions.geometry.centroid.iloc[0].coords[0][::-1]
 
-# ── Create Tabs ─────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "🗼️ Interactive Map", "📊 Data Exploration", "📈 Trends Over Time",
-    "🏩 Urban SDG 11 Insights", "📃 Socio-Economic Analysis"
-])
-
-# ── Interactive Map Tab ─────────────────────────────
-with tab1:
-    st.header("🗼️ Interactive Map")
+# ── Map Section ──────────────────────────────────────────────────────────────
+if scroll_target == "🗼️ Interactive Map":
     m = folium.Map(location=center, zoom_start=11, tiles="CartoDB positron")
 
     folium.GeoJson(
@@ -78,7 +78,6 @@ with tab1:
     img = Image.fromarray(rgba)
     t = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
     img.save(t.name)
-
     ImageOverlay(
         image=t.name,
         bounds=[[bounds.bottom, bounds.left], [bounds.top, bounds.right]],
@@ -98,12 +97,12 @@ with tab1:
     ).add_to(m)
 
     folium.LayerControl().add_to(m)
+    st.markdown("### 🗼️ Interactive Map")
     st_folium(m, width=1200, height=600)
     st.markdown("**🗱️ Darker colors indicate higher risk zones. Prioritize these areas for urban planning actions.**")
 
-# ── Socio-Economic Analysis Tab ─────────────────────
-with tab5:
-    st.header("📃 Socio-Economic Analysis")
+if scroll_target == "📃 Socio-Economic Analysis":
+    st.markdown("## 📃 Socio-Economic Analysis")
     try:
         veh_mob = pd.read_csv("torino_vehicle_mobility.csv")
         socio = pd.read_csv("torino_socio_econ_factors.csv")
@@ -115,33 +114,25 @@ with tab5:
         regions_stats["name"] = regions_stats["name"].str.lower().str.strip()
 
         pop = pop.groupby("Municipality", as_index=False)["Total"].sum()
-        merged = regions_stats[["name", "mean"]].rename(columns={"name": "Municipality", "mean": f"{pollutant}_Level"})
+        merged = regions_stats[["name", "mean", "geometry"]].rename(columns={"name": "Municipality", "mean": f"{pollutant}_Level"})
         merged = merged.merge(veh_mob, left_on="Municipality", right_on="municipality", how="left")
         merged = merged.merge(socio, left_on="Municipality", right_on="municipality", how="left")
         merged = merged.merge(pop, on="Municipality", how="left")
+        merged = gpd.GeoDataFrame(merged, geometry="geometry", crs="EPSG:4326")
 
-        st.markdown("### 🔍 Integrated Insights")
-        st.markdown("- *High vehicle density* often correlates with higher NO₂.")
-        st.markdown("- *Lower housing quality* = poorer planning & higher exposure.")
-        st.markdown("- *Population density* is tied to urban heat and traffic.")
+        m2 = folium.Map(location=center, zoom_start=11, tiles="CartoDB positron")
+        geojson = folium.GeoJson(
+            merged,
+            tooltip=folium.GeoJsonTooltip(
+                fields=["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total"],
+                aliases=["Municipality", "Pollution", "Vehicles/1000", "Housing Quality", "Population"]
+            )
+        )
+        geojson.add_to(m2)
+        st.markdown("### 🌐 Socio-Economic Interactive Map")
+        st_folium(m2, width=1200, height=500)
 
-        st.markdown("### 🏆 Top Municipalities by Pollution & Risk Factors")
-        st.dataframe(merged[["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total"]]
-                     .sort_values(by=f"{pollutant}_Level", ascending=False).head(10))
-
-        st.markdown("### 📈 Correlation Matrix")
-        corr = merged.select_dtypes(include=np.number).corr()
-        fig_corr, ax_corr = plt.subplots(figsize=(10, 6))
-        sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax_corr)
-        st.pyplot(fig_corr)
-
-        st.markdown("### 🚨 Auto-Highlighted Risk Zones")
-        top_risk = merged.sort_values(by=f"{pollutant}_Level", ascending=False).head(5)
-        st.dataframe(top_risk[["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total"]]
-                     .rename(columns={f"{pollutant}_Level": "Pollution Level"}))
-
-        st.markdown("### 🧶 SDG 11 Compliance Score")
-
+        st.markdown("### 📊 SDG Summary & Insights")
         def compute_sdg_score(row):
             pollution_score = 1 - min(row[f"{pollutant}_Level"] / vmax, 1)
             vehicle_score = 1 - min(row["vehicle_per_1000"] / 1000, 1)
@@ -149,26 +140,7 @@ with tab5:
             return round((pollution_score + vehicle_score + housing_score) / 3 * 100, 2)
 
         merged["SDG_11_Score"] = merged.apply(compute_sdg_score, axis=1)
-        fig_score, ax_score = plt.subplots(figsize=(10, 5))
-        top_score = merged.sort_values("SDG_11_Score", ascending=False).head(10)
-        sns.barplot(x="SDG_11_Score", y="Municipality", data=top_score, palette="Greens", ax=ax_score)
-        ax_score.set_title("Top 10 Municipalities by SDG 11 Compliance Score")
-        st.pyplot(fig_score)
-
-        st.markdown("\u2139 SDG 11 Score = Pollution + Vehicle + Housing Index → Higher is better.")
+        st.dataframe(merged[["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total", "SDG_11_Score"]].sort_values("SDG_11_Score", ascending=False))
 
     except Exception as e:
-        st.error(f"Error loading socio-economic data: {e}")
-
-# ── Placeholder Tabs ───────────────────────────────
-with tab2:
-    st.header("📊 Data Exploration")
-    st.info("This section is under development.")
-
-with tab3:
-    st.header("📈 Trends Over Time")
-    st.info("This section is under development.")
-
-with tab4:
-    st.header("🏩 Urban SDG 11 Insights")
-    st.info("This section is under development.")
+        st.error(f"Error loading socio-economic data: {e}")   
