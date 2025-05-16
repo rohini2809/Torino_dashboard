@@ -1,0 +1,11 @@
+municipality,population_density,housing_quality_index,healthcare_access_score,clean_energy_access,industrial_proximity_index
+Torino,5619,0.53,0.81,0.54,0.51
+Alpignano,3456,0.63,0.88,0.84,0.63
+Rivoli,3102,0.51,0.6,0.74,0.49
+Settimo Torinese,4126,0.57,0.88,0.82,0.55
+Moncalieri,4003,0.65,0.84,0.79,0.22
+Nichelino,3914,0.51,0.72,0.71,0.31
+Beinasco,3571,0.56,0.65,0.89,0.34
+Collegno,3419,0.69,0.94,0.65,0.24
+Grugliasco,5771,0.66,0.72,0.72,0.32
+Venaria Reale,5233,0.57,0.63,0.83,0.25
