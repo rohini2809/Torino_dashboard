@@ -105,25 +105,22 @@ if scroll_target == "🗼️ Interactive Map":
 if scroll_target == "📃 Socio-Economic Analysis":
     st.markdown("## 📃 Socio-Economic Analysis")
     try:
-        # Load CSVs
         veh_mob = pd.read_csv("torino_vehicle_mobility.csv")
         socio = pd.read_csv("torino_socio_econ_factors.csv")
         pop = pd.read_csv("Resident population.csv")
 
-        # Clean names for merge
         veh_mob["municipality"] = veh_mob["municipality"].str.lower().str.strip()
         socio["municipality"] = socio["municipality"].str.lower().str.strip()
         pop["Municipality"] = pop["Municipality"].str.lower().str.strip()
         regions_stats["name"] = regions_stats["name"].str.lower().str.strip()
 
-        # Merge
         pop = pop.groupby("Municipality", as_index=False)["Total"].sum()
         merged = regions_stats[["name", "mean", "geometry"]].rename(columns={"name": "Municipality", "mean": f"{pollutant}_Level"})
         merged = merged.merge(veh_mob, left_on="Municipality", right_on="municipality", how="left")
         merged = merged.merge(socio, left_on="Municipality", right_on="municipality", how="left")
         merged = merged.merge(pop, on="Municipality", how="left")
 
-        # Try mapping with fallback
+        # Try mapping
         try:
             merged = gpd.GeoDataFrame(merged, geometry="geometry", crs="EPSG:4326")
             m2 = folium.Map(location=center, zoom_start=11, tiles="CartoDB positron")
@@ -142,7 +139,6 @@ if scroll_target == "📃 Socio-Economic Analysis":
             st.info("Continuing with summary table only.")
 
         # Compute SDG Score
-        st.markdown("### 📊 SDG Summary & Insights")
         def compute_sdg_score(row):
             pollution_score = 1 - min(row[f"{pollutant}_Level"] / vmax, 1)
             vehicle_score = 1 - min(row["vehicle_per_1000"] / 1000, 1)
@@ -150,11 +146,40 @@ if scroll_target == "📃 Socio-Economic Analysis":
             return round((pollution_score + vehicle_score + housing_score) / 3 * 100, 2)
 
         merged["SDG_11_Score"] = merged.apply(compute_sdg_score, axis=1)
+
+        st.markdown("### 📊 SDG Summary & Insights")
         st.dataframe(
             merged[["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total", "SDG_11_Score"]]
             .sort_values("SDG_11_Score", ascending=False)
         )
 
+        # ➤ Feature 1: Top 5 at-risk
+        st.markdown("### 🚨 Top 5 At-Risk Municipalities")
+        st.table(
+            merged[["Municipality", "SDG_11_Score"]]
+            .sort_values("SDG_11_Score", ascending=True)
+            .head(5)
+            .reset_index(drop=True)
+        )
+
+        # ➤ Feature 2: Download Button
+        csv = merged.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="📥 Download Full Socio-Economic Dataset (CSV)",
+            data=csv,
+            file_name="torino_sdg11_socio_data.csv",
+            mime="text/csv"
+        )
+
+        # ➤ Feature 3: Bar Plot of Scores
+        st.markdown("### 📉 SDG 11 Score Distribution")
+        fig, ax = plt.subplots(figsize=(10, 4))
+        sorted_df = merged.sort_values("SDG_11_Score", ascending=True)
+        sns.barplot(x="SDG_11_Score", y="Municipality", data=sorted_df, palette="coolwarm", ax=ax)
+        ax.set_xlabel("SDG 11 Score")
+        ax.set_ylabel("Municipality")
+        ax.set_title("Municipality-wise SDG 11 Score")
+        st.pyplot(fig)
+
     except Exception as e:
         st.error(f"Error loading socio-economic data: {e}")
-
