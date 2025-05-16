@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from folium.raster_layers import ImageOverlay
-from folium import Choropleth
+from folium import Choropleth, GeoJson, GeoJsonTooltip
 from PIL import Image
 import os
 import seaborn as sns
@@ -58,8 +58,9 @@ with rasterio.open(tif_path) as src:
     regions_stats = gpd.GeoDataFrame.from_features(stats)
     regions_stats.set_crs(epsg=4326, inplace=True)
 
-# ── MAP TAB ────────────────────────────────────────────────────────────────
+# ── INTERACTIVE MAP ────────────────────────────────────────────────────────
 if scroll_target == "🗺️ Interactive Map":
+    st.markdown("### 🗺️ Interactive Map")
     center = regions.geometry.centroid.iloc[0].coords[0][::-1]
     m = folium.Map(location=center, zoom_start=11, tiles="CartoDB positron")
 
@@ -67,7 +68,7 @@ if scroll_target == "🗺️ Interactive Map":
         regions,
         name="Municipalities",
         style_function=lambda f: {"color": "black", "weight": 1, "fillOpacity": 0},
-        tooltip=folium.GeoJsonTooltip(fields=["name"], aliases=["Municipality"], sticky=True)
+        tooltip=folium.GeoJsonTooltip(fields=["name"], aliases=["Municipality"])
     ).add_to(m)
 
     cmap = cm.get_cmap("plasma")
@@ -75,6 +76,7 @@ if scroll_target == "🗺️ Interactive Map":
     img = Image.fromarray(rgba)
     t = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
     img.save(t.name)
+
     ImageOverlay(
         image=t.name,
         bounds=[[bounds.bottom, bounds.left], [bounds.top, bounds.right]],
@@ -94,7 +96,6 @@ if scroll_target == "🗺️ Interactive Map":
     ).add_to(m)
 
     folium.LayerControl().add_to(m)
-    st.markdown("### 🗺️ Interactive Map")
     st_folium(m, width=1200, height=600)
     st.markdown("**🟥 Darker colors indicate higher risk zones. Prioritize these areas for urban planning actions.**")
 
@@ -151,7 +152,7 @@ if scroll_target == "📈 Trends Over Time":
     except Exception as e:
         st.warning(f"Could not load trends data: {e}")
 
-# ── URBAN SDG 11 INSIGHTS ──────────────────────────────────────────────────
+# ── SDG 11 INSIGHTS ────────────────────────────────────────────────────────
 if scroll_target == "🏙️ Urban SDG 11 Insights":
     st.markdown("## 🏙️ Urban SDG 11 Insights")
     st.success("1. High-risk zones from NO2 map should be targeted with traffic and emissions policy.")
@@ -177,27 +178,17 @@ if scroll_target == "📃 Socio-Economic Analysis":
         merged = merged.merge(socio, left_on="Municipality", right_on="municipality", how="left")
         merged = merged.merge(pop, on="Municipality", how="left")
 
-        st.markdown("### 🔍 Integrated Insights")
-        st.markdown("- **High vehicle density** often correlates with higher NO₂.")
-        st.markdown("- **Lower housing quality** = poorer planning & higher exposure.")
-        st.markdown("- **Population density** is tied to urban heat and traffic.")
+        m2 = folium.Map(location=center, zoom_start=11, tiles="CartoDB positron")
+        geojson = folium.GeoJson(
+            merged,
+            tooltip=folium.GeoJsonTooltip(fields=["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total"],
+                                          aliases=["Municipality", "Pollution", "Vehicles/1000", "Housing Quality", "Population"])
+        )
+        geojson.add_to(m2)
+        st.markdown("### 🌐 Socio-Economic Interactive Map")
+        st_folium(m2, width=1200, height=500)
 
-        st.markdown("### 🏆 Top Municipalities by Pollution & Risk Factors")
-        st.dataframe(merged[["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total"]]
-                     .sort_values(by=f"{pollutant}_Level", ascending=False).head(10))
-
-        st.markdown("### 📈 Correlation Matrix")
-        corr = merged.select_dtypes(include=np.number).corr()
-        fig_corr, ax_corr = plt.subplots(figsize=(10, 6))
-        sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax_corr)
-        st.pyplot(fig_corr)
-
-        st.markdown("### 🚨 Auto-Highlighted Risk Zones")
-        top_risk = merged.sort_values(by=f"{pollutant}_Level", ascending=False).head(5)
-        st.dataframe(top_risk[["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total"]]
-                     .rename(columns={f"{pollutant}_Level": "Pollution Level"}))
-
-        st.markdown("### 🧮 SDG 11 Compliance Score")
+        st.markdown("### 📊 SDG Summary & Insights")
         def compute_sdg_score(row):
             pollution_score = 1 - min(row[f"{pollutant}_Level"] / vmax, 1)
             vehicle_score = 1 - min(row["vehicle_per_1000"] / 1000, 1)
@@ -205,13 +196,7 @@ if scroll_target == "📃 Socio-Economic Analysis":
             return round((pollution_score + vehicle_score + housing_score) / 3 * 100, 2)
 
         merged["SDG_11_Score"] = merged.apply(compute_sdg_score, axis=1)
-        fig_score, ax_score = plt.subplots(figsize=(10, 5))
-        top_score = merged.sort_values("SDG_11_Score", ascending=False).head(10)
-        sns.barplot(x="SDG_11_Score", y="Municipality", data=top_score, palette="Greens", ax=ax_score)
-        ax_score.set_title("Top 10 Municipalities by SDG 11 Compliance Score")
-        st.pyplot(fig_score)
-
-        st.markdown("**ℹ️ SDG 11 Score = Pollution + Vehicle + Housing Index → Higher is better.**")
+        st.dataframe(merged[["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total", "SDG_11_Score"]].sort_values("SDG_11_Score", ascending=False))
 
     except Exception as e:
         st.error(f"Error loading socio-economic data: {e}")
