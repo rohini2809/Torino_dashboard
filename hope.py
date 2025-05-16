@@ -1,44 +1,4 @@
-# ── SOCIO-ECONOMIC ANALYSIS ────────────────────────────────────────────────
-if scroll_target == "📃 Socio-Economic Analysis":
-    st.markdown("## 📃 Socio-Economic Analysis")
-    try:
-        veh_mob = pd.read_csv("torino_vehicle_mobility.csv")
-        socio = pd.read_csv("torino_socio_econ_factors.csv")
-        pop = pd.read_csv("Resident population.csv")
-
-        veh_mob["municipality"] = veh_mob["municipality"].str.lower().str.strip()
-        socio["municipality"] = socio["municipality"].str.lower().str.strip()
-        pop["Municipality"] = pop["Municipality"].str.lower().str.strip()
-        regions_stats["name"] = regions_stats["name"].str.lower().str.strip()
-
-        pop = pop.groupby("Municipality", as_index=False)["Total"].sum()
-        merged = regions_stats[["name", "mean"]].rename(columns={"name": "Municipality", "mean": f"{pollutant}_Level"})
-        merged = merged.merge(veh_mob, left_on="Municipality", right_on="municipality", how="left")
-        merged = merged.merge(socio, left_on="Municipality", right_on="municipality", how="left")
-        merged = merged.merge(pop, on="Municipality", how="left")
-
-        m2 = folium.Map(location=center, zoom_start=11, tiles="CartoDB positron")
-        geojson = folium.GeoJson(
-            merged,
-            tooltip=folium.GeoJsonTooltip(fields=["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total"],
-                                          aliases=["Municipality", "Pollution", "Vehicles/1000", "Housing Quality", "Population"])
-        )
-        geojson.add_to(m2)
-        st.markdown("### 🌐 Socio-Economic Interactive Map")
-        st_folium(m2, width=1200, height=500)
-
-        st.markdown("### 📊 SDG Summary & Insights")
-        def compute_sdg_score(row):
-            pollution_score = 1 - min(row[f"{pollutant}_Level"] / vmax, 1)
-            vehicle_score = 1 - min(row["vehicle_per_1000"] / 1000, 1)
-            housing_score = row["housing_quality_index"] / 100 if pd.notnull(row["housing_quality_index"]) else 0
-            return round((pollution_score + vehicle_score + housing_score) / 3 * 100, 2)
-
-        merged["SDG_11_Score"] = merged.apply(compute_sdg_score, axis=1)
-        st.dataframe(merged[["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total", "SDG_11_Score"]].sort_values("SDG_11_Score", ascending=False))
-
-    except Exception as e:
-        st.error(f"Error loading socio-economic data: {e}")import streamlit as st
+import streamlit as st
 import geopandas as gpd
 import folium
 from streamlit_folium import st_folium
@@ -98,10 +58,11 @@ with rasterio.open(tif_path) as src:
     regions_stats = gpd.GeoDataFrame.from_features(stats)
     regions_stats.set_crs(epsg=4326, inplace=True)
 
+center = regions.geometry.centroid.iloc[0].coords[0][::-1]
+
 # ── INTERACTIVE MAP ────────────────────────────────────────────────────────
 if scroll_target == "🗺 Interactive Map":
     st.markdown("### 🗺 Interactive Map")
-    center = regions.geometry.centroid.iloc[0].coords[0][::-1]
     m = folium.Map(location=center, zoom_start=11, tiles="CartoDB positron")
 
     folium.GeoJson(
@@ -218,17 +179,6 @@ if scroll_target == "📃 Socio-Economic Analysis":
         merged = merged.merge(socio, left_on="Municipality", right_on="municipality", how="left")
         merged = merged.merge(pop, on="Municipality", how="left")
 
-        m2 = folium.Map(location=center, zoom_start=11, tiles="CartoDB positron")
-        geojson = folium.GeoJson(
-            merged,
-            tooltip=folium.GeoJsonTooltip(fields=["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total"],
-                                          aliases=["Municipality", "Pollution", "Vehicles/1000", "Housing Quality", "Population"])
-        )
-        geojson.add_to(m2)
-        st.markdown("### 🌐 Socio-Economic Interactive Map")
-        st_folium(m2, width=1200, height=500)
-
-        st.markdown("### 📊 SDG Summary & Insights")
         def compute_sdg_score(row):
             pollution_score = 1 - min(row[f"{pollutant}_Level"] / vmax, 1)
             vehicle_score = 1 - min(row["vehicle_per_1000"] / 1000, 1)
@@ -236,7 +186,16 @@ if scroll_target == "📃 Socio-Economic Analysis":
             return round((pollution_score + vehicle_score + housing_score) / 3 * 100, 2)
 
         merged["SDG_11_Score"] = merged.apply(compute_sdg_score, axis=1)
-        st.dataframe(merged[["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total", "SDG_11_Score"]].sort_values("SDG_11_Score", ascending=False))
+
+        st.markdown("### 📊 SDG 11 Score by Municipality")
+        fig_bar, ax_bar = plt.subplots(figsize=(8, 5))
+        ranked = merged.sort_values("SDG_11_Score", ascending=False)
+        sns.barplot(y="Municipality", x="SDG_11_Score", data=ranked, ax=ax_bar, palette="Greens")
+        ax_bar.set_xlabel("SDG 11 Score")
+        ax_bar.set_ylabel("Municipality")
+        st.pyplot(fig_bar)
+
+        st.info("ℹ️ SDG 11 Score is computed using pollution, vehicle density, and housing quality. A higher score indicates better alignment with sustainable urban goals.")
 
     except Exception as e:
         st.error(f"Error loading socio-economic data: {e}")
