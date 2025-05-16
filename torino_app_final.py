@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from folium.raster_layers import ImageOverlay
-from folium import Choropleth, GeoJsonTooltip
+from folium import Choropleth
 from PIL import Image
 import os
 import io
@@ -31,12 +31,13 @@ scroll_target = st.sidebar.radio("Jump to Section:", [
 # ── File mappings ────────────────────────────────────────────────────────────
 DATA_DIR = "Torino"
 GEOJSON = "torino_only.geojson"
+
 FILE_MAP = {
     "NO2": "no2_turin_clipped.tif",
     "SO2": "so2_turin_clipped.tif",
     "CH4": "ch4_turin_clipped.tif",
     "O3":  "o3_turin_clipped.tif",
-    "HCHO": "hcho_turin_clipped.tif"
+    "HCHO":"hcho_turin_clipped.tif"
 }
 
 pollutant = st.sidebar.selectbox("Select pollutant:", list(FILE_MAP.keys()))
@@ -59,16 +60,17 @@ with rasterio.open(tif_path) as src:
     regions_stats = gpd.GeoDataFrame.from_features(stats)
     regions_stats.set_crs(epsg=4326, inplace=True)
 
-# ── Interactive Map ──────────────────────────────────────────────────────────
+center = regions.geometry.centroid.iloc[0].coords[0][::-1]
+
+# ── Map Section ──────────────────────────────────────────────────────────────
 if scroll_target == "🗼️ Interactive Map":
-    center = regions.geometry.centroid.iloc[0].coords[0][::-1]
     m = folium.Map(location=center, zoom_start=11, tiles="CartoDB positron")
 
     folium.GeoJson(
         regions,
         name="Municipalities",
         style_function=lambda f: {"color": "black", "weight": 1, "fillOpacity": 0},
-        tooltip=GeoJsonTooltip(fields=["name"], aliases=["Municipality"])
+        tooltip=folium.GeoJsonTooltip(fields=["name"], aliases=["Municipality"], sticky=True)
     ).add_to(m)
 
     cmap = cm.get_cmap("plasma")
@@ -159,3 +161,45 @@ if scroll_target == "🏩 Urban SDG 11 Insights":
     st.success("1. High-risk zones from NO2 map should be targeted with traffic and emissions policy.")
     st.info("2. Trends show seasonal variation — plan interventions during high exposure months.")
     st.warning("3. Use zoning laws to restrict industrial emissions in urban cores.")
+
+# ── Socio-Economic Analysis ─────────────────────────────────────────────────────
+if scroll_target == "📃 Socio-Economic Analysis":
+    st.markdown("## 📃 Socio-Economic Analysis")
+    try:
+        veh_mob = pd.read_csv("torino_vehicle_mobility.csv")
+        socio = pd.read_csv("torino_socio_econ_factors.csv")
+        pop = pd.read_csv("Resident population.csv")
+
+        veh_mob["municipality"] = veh_mob["municipality"].str.lower().str.strip()
+        socio["municipality"] = socio["municipality"].str.lower().str.strip()
+        pop["Municipality"] = pop["Municipality"].str.lower().str.strip()
+        regions_stats["name"] = regions_stats["name"].str.lower().str.strip()
+
+        pop = pop.groupby("Municipality", as_index=False)["Total"].sum()
+        merged = regions_stats[["name", "mean"]].rename(columns={"name": "Municipality", "mean": f"{pollutant}_Level"})
+        merged = merged.merge(veh_mob, left_on="Municipality", right_on="municipality", how="left")
+        merged = merged.merge(socio, left_on="Municipality", right_on="municipality", how="left")
+        merged = merged.merge(pop, on="Municipality", how="left")
+
+        m2 = folium.Map(location=center, zoom_start=11, tiles="CartoDB positron")
+        geojson = folium.GeoJson(
+            merged,
+            tooltip=folium.GeoJsonTooltip(fields=["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total"],
+                                          aliases=["Municipality", "Pollution", "Vehicles/1000", "Housing Quality", "Population"])
+        )
+        geojson.add_to(m2)
+        st.markdown("### 🌐 Socio-Economic Interactive Map")
+        st_folium(m2, width=1200, height=500)
+
+        st.markdown("### 📊 SDG Summary & Insights")
+        def compute_sdg_score(row):
+            pollution_score = 1 - min(row[f"{pollutant}_Level"] / vmax, 1)
+            vehicle_score = 1 - min(row["vehicle_per_1000"] / 1000, 1)
+            housing_score = row["housing_quality_index"] / 100 if pd.notnull(row["housing_quality_index"]) else 0
+            return round((pollution_score + vehicle_score + housing_score) / 3 * 100, 2)
+
+        merged["SDG_11_Score"] = merged.apply(compute_sdg_score, axis=1)
+        st.dataframe(merged[["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total", "SDG_11_Score"]].sort_values("SDG_11_Score", ascending=False))
+
+    except Exception as e:
+        st.error(f"Error loading socio-economic data: {e}")
