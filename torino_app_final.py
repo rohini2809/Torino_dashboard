@@ -1,5 +1,3 @@
-
-# Streamlit + SDG11 Dashboard: Final Version (with Real Municipality Column)
 import streamlit as st
 import geopandas as gpd
 import folium
@@ -12,7 +10,6 @@ from folium.raster_layers import ImageOverlay
 from folium import Choropleth
 from PIL import Image
 import os
-import io
 import seaborn as sns
 from rasterstats import zonal_stats
 import tempfile
@@ -22,7 +19,7 @@ import pandas as pd
 st.set_page_config(layout="wide")
 st.title("🌍 Air Pollution in Turin - SDG 11 Dashboard")
 st.markdown("""
-This dashboard explores satellite-based pollution data for **Turin, Italy** in support of **SDG 11: Sustainable Cities and Communities**. 
+This dashboard explores satellite-based pollution data for **Turin, Italy** in support of **SDG 11: Sustainable Cities and Communities**.
 Scroll or click a section to navigate.
 """)
 
@@ -30,10 +27,9 @@ st.sidebar.title("📌 Navigation")
 scroll_target = st.sidebar.radio("Jump to Section:", [
     "🗺️ Interactive Map", "📊 Data Exploration", "📈 Trends Over Time", "🏙️ Urban SDG 11 Insights", "📃 Socio-Economic Analysis"])
 
-# ── File mappings ────────────────────────────────────────────────────────────
+# ── File paths ─────────────────────────────────────────────────────────────
 DATA_DIR = "Torino"
 GEOJSON = "torino_only.geojson"
-
 FILE_MAP = {
     "NO2": "no2_turin_clipped.tif",
     "SO2": "so2_turin_clipped.tif",
@@ -45,7 +41,7 @@ FILE_MAP = {
 pollutant = st.sidebar.selectbox("Select pollutant:", list(FILE_MAP.keys()))
 tif_path = os.path.join(DATA_DIR, FILE_MAP[pollutant])
 
-# ── Load boundary GeoJSON and raster ─────────────────────────────────────────
+# ── Load shapefile & raster ────────────────────────────────────────────────
 regions = gpd.read_file(GEOJSON)
 if regions.crs is None:
     regions.set_crs(epsg=4326, inplace=True)
@@ -62,7 +58,7 @@ with rasterio.open(tif_path) as src:
     regions_stats = gpd.GeoDataFrame.from_features(stats)
     regions_stats.set_crs(epsg=4326, inplace=True)
 
-# ── Map Section ──────────────────────────────────────────────────────────────
+# ── MAP TAB ────────────────────────────────────────────────────────────────
 if scroll_target == "🗺️ Interactive Map":
     center = regions.geometry.centroid.iloc[0].coords[0][::-1]
     m = folium.Map(location=center, zoom_start=11, tiles="CartoDB positron")
@@ -102,7 +98,67 @@ if scroll_target == "🗺️ Interactive Map":
     st_folium(m, width=1200, height=600)
     st.markdown("**🟥 Darker colors indicate higher risk zones. Prioritize these areas for urban planning actions.**")
 
-# ── Socio-Economic Analysis ─────────────────────────────────────────────────────
+# ── DATA EXPLORATION ───────────────────────────────────────────────────────
+if scroll_target == "📊 Data Exploration":
+    st.markdown("## 📊 Data Exploration")
+    st.markdown("#### 🔢 Pixel Grid Heatmap (Preview)")
+    fig1, ax1 = plt.subplots(figsize=(6, 5))
+    sns.heatmap(norm[::10, ::10], cmap="plasma", cbar=True, ax=ax1)
+    st.pyplot(fig1)
+
+    st.markdown("#### 📈 Pollution Value Distribution")
+    fig2, ax2 = plt.subplots(figsize=(6, 3))
+    vals = norm.flatten()
+    vals = vals[vals > 0]
+    ax2.hist(vals, bins=30, color="orange", edgecolor="black")
+    ax2.set_xlabel("Normalized Value")
+    ax2.set_ylabel("Pixel Count")
+    st.pyplot(fig2)
+
+    st.markdown("#### 🏙️ Municipality Pollution Ranking")
+    df_table = regions_stats[["name", "mean"]].sort_values(by="mean", ascending=False)
+    st.dataframe(df_table.rename(columns={"name": "Municipality", "mean": f"{pollutant} Level"}))
+
+# ── TRENDS OVER TIME ───────────────────────────────────────────────────────
+if scroll_target == "📈 Trends Over Time":
+    st.markdown("## 📈 Urban Pollution Trends (CO & Aerosol Index)")
+    try:
+        co_df = pd.read_csv("Sentinel-5P CO-CO_VISUALIZED-2020-05-13T00_00_00.000Z-2025-05-13T23_59_59.999Z.csv")
+        aer_df = pd.read_csv("Sentinel-5P AER_AI-AER_AI_340_AND_380_VISUALIZED-2019-06-14T00_00_00.000Z-2024-06-14T23_59_59.999Z.csv")
+
+        co_df["C0/date"] = pd.to_datetime(co_df["C0/date"])
+        aer_df["C0/date"] = pd.to_datetime(aer_df["C0/date"])
+
+        co_df.rename(columns={"C0/date": "Date", "C0/mean": "CO_Level"}, inplace=True)
+        aer_df.rename(columns={"C0/date": "Date", "C0/mean": "Aerosol_Index"}, inplace=True)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("#### 🟠 Carbon Monoxide (CO)")
+            fig_co, ax_co = plt.subplots(figsize=(6, 3))
+            ax_co.plot(co_df["Date"], co_df["CO_Level"], color="orange")
+            ax_co.set_ylabel("CO Level")
+            ax_co.set_xlabel("Date")
+            st.pyplot(fig_co)
+        with col2:
+            st.markdown("#### 🔵 Aerosol Index")
+            fig_ai, ax_ai = plt.subplots(figsize=(6, 3))
+            ax_ai.plot(aer_df["Date"], aer_df["Aerosol_Index"], color="blue")
+            ax_ai.set_ylabel("Aerosol Index")
+            ax_ai.set_xlabel("Date")
+            st.pyplot(fig_ai)
+
+    except Exception as e:
+        st.warning(f"Could not load trends data: {e}")
+
+# ── URBAN SDG 11 INSIGHTS ──────────────────────────────────────────────────
+if scroll_target == "🏙️ Urban SDG 11 Insights":
+    st.markdown("## 🏙️ Urban SDG 11 Insights")
+    st.success("1. High-risk zones from NO2 map should be targeted with traffic and emissions policy.")
+    st.info("2. Trends show seasonal variation — plan interventions during high exposure months.")
+    st.warning("3. Use zoning laws to restrict industrial emissions in urban cores.")
+
+# ── SOCIO-ECONOMIC ANALYSIS ────────────────────────────────────────────────
 if scroll_target == "📃 Socio-Economic Analysis":
     st.markdown("## 📃 Socio-Economic Analysis")
     try:
@@ -122,11 +178,11 @@ if scroll_target == "📃 Socio-Economic Analysis":
         merged = merged.merge(pop, on="Municipality", how="left")
 
         st.markdown("### 🔍 Integrated Insights")
-        st.markdown("- Municipalities with **high vehicle density** often correlate with higher NO₂ levels.")
-        st.markdown("- **Lower housing quality** can be associated with poorer urban planning and higher pollutant exposure.")
-        st.markdown("- **Population concentration** plays a role in urban heat and emission zones.")
+        st.markdown("- **High vehicle density** often correlates with higher NO₂.")
+        st.markdown("- **Lower housing quality** = poorer planning & higher exposure.")
+        st.markdown("- **Population density** is tied to urban heat and traffic.")
 
-        st.markdown("### 📋 Top Municipalities by Pollution and Socio-Economic Indicators")
+        st.markdown("### 🏆 Top Municipalities by Pollution & Risk Factors")
         st.dataframe(merged[["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total"]]
                      .sort_values(by=f"{pollutant}_Level", ascending=False).head(10))
 
@@ -135,15 +191,6 @@ if scroll_target == "📃 Socio-Economic Analysis":
         fig_corr, ax_corr = plt.subplots(figsize=(10, 6))
         sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax_corr)
         st.pyplot(fig_corr)
-
-        st.markdown("### 🚗 Mobility to Pollution Ratio")
-        merged["Mobility_to_Pollution"] = merged["vehicle_per_1000"] / (merged[f"{pollutant}_Level"] + 1e-5)
-        fig_ratio, ax_ratio = plt.subplots(figsize=(8, 4))
-        top_ratio = merged.sort_values("Mobility_to_Pollution", ascending=False).head(10)
-        sns.barplot(x="Mobility_to_Pollution", y="Municipality", data=top_ratio, palette="viridis", ax=ax_ratio)
-        ax_ratio.set_title("Top 10 Municipalities: Vehicle Density vs Pollution")
-        ax_ratio.set_xlabel("Vehicles per 1000 / Pollution Level")
-        st.pyplot(fig_ratio)
 
         st.markdown("### 🚨 Auto-Highlighted Risk Zones")
         top_risk = merged.sort_values(by=f"{pollutant}_Level", ascending=False).head(5)
@@ -158,14 +205,13 @@ if scroll_target == "📃 Socio-Economic Analysis":
             return round((pollution_score + vehicle_score + housing_score) / 3 * 100, 2)
 
         merged["SDG_11_Score"] = merged.apply(compute_sdg_score, axis=1)
-
         fig_score, ax_score = plt.subplots(figsize=(10, 5))
         top_score = merged.sort_values("SDG_11_Score", ascending=False).head(10)
         sns.barplot(x="SDG_11_Score", y="Municipality", data=top_score, palette="Greens", ax=ax_score)
         ax_score.set_title("Top 10 Municipalities by SDG 11 Compliance Score")
         st.pyplot(fig_score)
 
-        st.markdown("**ℹ️ SDG 11 Score is computed using pollution, vehicle density, and housing quality. A higher score indicates better alignment with sustainable urban goals.**")
+        st.markdown("**ℹ️ SDG 11 Score = Pollution + Vehicle + Housing Index → Higher is better.**")
 
     except Exception as e:
         st.error(f"Error loading socio-economic data: {e}")
