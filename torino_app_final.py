@@ -101,6 +101,7 @@ if scroll_target == "🗼️ Interactive Map":
     st_folium(m, width=1200, height=600)
     st.markdown("**🗱️ Darker colors indicate higher risk zones. Prioritize these areas for urban planning actions.**")
 
+# ── Socio-Economic Analysis ────────────────────────────────────────────────
 if scroll_target == "📃 Socio-Economic Analysis":
     st.markdown("## 📃 Socio-Economic Analysis")
     try:
