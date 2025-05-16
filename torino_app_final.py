@@ -101,67 +101,6 @@ if scroll_target == "🗼️ Interactive Map":
     st_folium(m, width=1200, height=600)
     st.markdown("**🗱️ Darker colors indicate higher risk zones. Prioritize these areas for urban planning actions.**")
 
-# ── Data Exploration ─────────────────────────────────────────────────────────
-if scroll_target == "📊 Data Exploration":
-    st.markdown("## 📊 Data Exploration")
-    st.markdown("#### 🔢 Pixel Grid Heatmap (Preview)")
-    fig1, ax1 = plt.subplots(figsize=(6, 5))
-    sns.heatmap(norm[::10, ::10], cmap="plasma", cbar=True, ax=ax1)
-    st.pyplot(fig1)
-
-    st.markdown("#### 📈 Pollution Value Distribution")
-    fig2, ax2 = plt.subplots(figsize=(6, 3))
-    vals = norm.flatten()
-    vals = vals[vals > 0]
-    ax2.hist(vals, bins=30, color="orange", edgecolor="black")
-    ax2.set_xlabel("Normalized Value")
-    ax2.set_ylabel("Pixel Count")
-    st.pyplot(fig2)
-
-    st.markdown("#### 🏙️ Municipality Pollution Ranking")
-    df_table = regions_stats[["name", "mean"]].sort_values(by="mean", ascending=False)
-    st.dataframe(df_table.rename(columns={"name": "Municipality", "mean": f"{pollutant} Level"}))
-
-# ── Trends ───────────────────────────────────────────────────────────────────
-if scroll_target == "📈 Trends Over Time":
-    st.markdown("## 📈 Urban Pollution Trends (CO & Aerosol Index)")
-    try:
-        co_df = pd.read_csv("Sentinel-5P CO-CO_VISUALIZED-2020-05-13T00_00_00.000Z-2025-05-13T23_59_59.999Z.csv")
-        aer_df = pd.read_csv("Sentinel-5P AER_AI-AER_AI_340_AND_380_VISUALIZED-2019-06-14T00_00_00.000Z-2024-06-14T23_59_59.999Z.csv")
-
-        co_df["C0/date"] = pd.to_datetime(co_df["C0/date"])
-        aer_df["C0/date"] = pd.to_datetime(aer_df["C0/date"])
-
-        co_df.rename(columns={"C0/date": "Date", "C0/mean": "CO_Level"}, inplace=True)
-        aer_df.rename(columns={"C0/date": "Date", "C0/mean": "Aerosol_Index"}, inplace=True)
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("#### 🟠 Carbon Monoxide (CO)")
-            fig_co, ax_co = plt.subplots(figsize=(6, 3))
-            ax_co.plot(co_df["Date"], co_df["CO_Level"], color="orange")
-            ax_co.set_ylabel("CO Level")
-            ax_co.set_xlabel("Date")
-            st.pyplot(fig_co)
-        with col2:
-            st.markdown("#### 🔵 Aerosol Index")
-            fig_ai, ax_ai = plt.subplots(figsize=(6, 3))
-            ax_ai.plot(aer_df["Date"], aer_df["Aerosol_Index"], color="blue")
-            ax_ai.set_ylabel("Aerosol Index")
-            ax_ai.set_xlabel("Date")
-            st.pyplot(fig_ai)
-
-    except Exception as e:
-        st.warning(f"Could not load trends data: {e}")
-
-# ── SDG 11 Insight ───────────────────────────────────────────────────────────
-if scroll_target == "🏩 Urban SDG 11 Insights":
-    st.markdown("## 🏩 Urban SDG 11 Insights")
-    st.markdown("### 📌 Priority Planning Actions")
-    st.success("1. High-risk zones from NO2 map should be targeted with traffic and emissions policy.")
-    st.info("2. Trends show seasonal variation — plan interventions during high exposure months.")
-    st.warning("3. Use zoning laws to restrict industrial emissions in urban cores.")
-
 # ── Socio-Economic Analysis ─────────────────────────────────────────────────────
 if scroll_target == "📃 Socio-Economic Analysis":
     st.markdown("## 📃 Socio-Economic Analysis")
