@@ -101,7 +101,6 @@ if scroll_target == "🗼️ Interactive Map":
     st_folium(m, width=1200, height=600)
     st.markdown("**🗱️ Darker colors indicate higher risk zones. Prioritize these areas for urban planning actions.**")
 
-# ── Socio-Economic Analysis ─────────────────────────────────────────────────────
 if scroll_target == "📃 Socio-Economic Analysis":
     st.markdown("## 📃 Socio-Economic Analysis")
     try:
@@ -115,16 +114,19 @@ if scroll_target == "📃 Socio-Economic Analysis":
         regions_stats["name"] = regions_stats["name"].str.lower().str.strip()
 
         pop = pop.groupby("Municipality", as_index=False)["Total"].sum()
-        merged = regions_stats[["name", "mean"]].rename(columns={"name": "Municipality", "mean": f"{pollutant}_Level"})
+        merged = regions_stats[["name", "mean", "geometry"]].rename(columns={"name": "Municipality", "mean": f"{pollutant}_Level"})
         merged = merged.merge(veh_mob, left_on="Municipality", right_on="municipality", how="left")
         merged = merged.merge(socio, left_on="Municipality", right_on="municipality", how="left")
         merged = merged.merge(pop, on="Municipality", how="left")
+        merged = gpd.GeoDataFrame(merged, geometry="geometry", crs="EPSG:4326")
 
         m2 = folium.Map(location=center, zoom_start=11, tiles="CartoDB positron")
         geojson = folium.GeoJson(
             merged,
-            tooltip=folium.GeoJsonTooltip(fields=["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total"],
-                                          aliases=["Municipality", "Pollution", "Vehicles/1000", "Housing Quality", "Population"])
+            tooltip=folium.GeoJsonTooltip(
+                fields=["Municipality", f"{pollutant}_Level", "vehicle_per_1000", "housing_quality_index", "Total"],
+                aliases=["Municipality", "Pollution", "Vehicles/1000", "Housing Quality", "Population"]
+            )
         )
         geojson.add_to(m2)
         st.markdown("### 🌐 Socio-Economic Interactive Map")
